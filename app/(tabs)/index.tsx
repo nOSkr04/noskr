@@ -1,70 +1,120 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import "react-native-gesture-handler";
+import React, { useState } from "react";
+import { StyleSheet, Pressable } from "react-native";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  runOnJS,
+  withTiming,
+  SlideInDown,
+  SlideOutDown,
+  FadeIn,
+  FadeOut,
+} from "react-native-reanimated";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  ACCENT_COLOR,
+  BACKDROP_COLOR,
+  BACKGROUND_COLOR,
+} from "@/components/misc/colors";
+import { HEIGHT, OVERDRAG } from "@/components/misc/consts";
+import Chat from "@/components/Chat";
+import AccentPicker from "@/components/AccentPicker";
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export default function HomeScreen() {
+function App() {
+  const [isOpen, setOpen] = useState(false);
+
+  const accent = useSharedValue(ACCENT_COLOR);
+  const offset = useSharedValue(0);
+
+  const toggleSheet = () => {
+    setOpen(!isOpen);
+    offset.value = 0;
+  };
+
+  const pan = Gesture.Pan()
+    .onChange((event) => {
+      const offsetDelta = event.changeY + offset.value;
+
+      const clamp = Math.max(-OVERDRAG, offsetDelta);
+      offset.value = offsetDelta > 0 ? offsetDelta : withSpring(clamp);
+    })
+    .onFinalize(() => {
+      if (offset.value < HEIGHT / 3) {
+        offset.value = withSpring(0);
+      } else {
+        offset.value = withTiming(HEIGHT, {}, () => {
+          runOnJS(toggleSheet)();
+        });
+      }
+    });
+
+  const translateY = useAnimatedStyle(() => ({
+    transform: [{ translateY: offset.value }],
+  }));
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <GestureHandlerRootView style={styles.container}>
+      <SafeAreaProvider>
+        <Chat toggleSheet={toggleSheet} accent={accent} />
+        {isOpen && (
+          <>
+            <AnimatedPressable
+              style={styles.backdrop}
+              entering={FadeIn}
+              exiting={FadeOut}
+              onPress={toggleSheet}
+            />
+            <GestureDetector gesture={pan}>
+              <Animated.View
+                style={[styles.sheet, translateY]}
+                entering={SlideInDown.springify().damping(15)}
+                exiting={SlideOutDown}
+              >
+                <AccentPicker
+                  onPick={(color: any) => {
+                    accent.value = color;
+                    toggleSheet();
+                  }}
+                />
+              </Animated.View>
+            </GestureDetector>
+          </>
+        )}
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: BACKGROUND_COLOR,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  sheet: {
+    backgroundColor: "white",
+    padding: 16,
+    height: HEIGHT,
+    width: "100%",
+    position: "absolute",
+    bottom: -OVERDRAG * 1.1,
+    borderTopRightRadius: 20,
+    borderTopLeftRadius: 20,
+    zIndex: 1,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: BACKDROP_COLOR,
+    zIndex: 1,
   },
 });
+
+export default App;
